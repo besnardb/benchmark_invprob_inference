@@ -23,10 +23,10 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version-file: "pyproject.toml"
+          python-version: "3.12"
 
       - name: Install doc dependencies
-        run: uv sync --group dev
+        run: uv sync --group dev --no-install-project
 
       - name: Build docs
         run: uv run make -C docs html

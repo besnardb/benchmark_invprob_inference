@@ -78,7 +78,8 @@ def initialize_reconstruction(
         raise ValueError(
             f"Unknown initialization method: {method}. Use 'zeros' or 'pseudo_inverse'"
         )
-    
+
+
 def normalize(x, min=0.0, max=1.0):
     """Normalize tensor to [min, max] range."""
     x_min = x.min()

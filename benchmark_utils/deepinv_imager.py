@@ -1,15 +1,17 @@
 import math
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Optional, Tuple, Union
+
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from dataclasses import dataclass
-import matplotlib.pyplot as plt
-from typing import Optional, Union, Tuple
 from astropy import constants as const
 from deepinv.physics import RadioInterferometry
 from typing_extensions import TypeAlias
-from pathlib import Path
 
 FilePathType: TypeAlias = Union[Path, str]
+DEFAULT_DEVICE = torch.device("cpu")
 
 
 @dataclass
@@ -44,7 +46,7 @@ class DeepinvDirtyImager(torch.nn.Module):
     """
 
     def __init__(
-        self, config: DirtyImagerConfig, device=torch.device("cpu"), verbose: int = 0
+        self, config: DirtyImagerConfig, device=DEFAULT_DEVICE, verbose: int = 0
     ) -> None:
         """Initializes the instance with a config.
 
@@ -211,7 +213,7 @@ class DeepinvDirtyImager(torch.nn.Module):
         im_size: torch.Tensor,
         weight_gridsize: int = 1,
         kernel_size: int = 5,
-        device=torch.device("cpu"),
+        device=DEFAULT_DEVICE,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Optimized uniform weighting calculation for CPU/GPU
 
@@ -292,7 +294,7 @@ class DeepinvDirtyImager(torch.nn.Module):
         visibilities: torch.Tensor,
         weights: torch.Tensor,
         grid_size: int = 512,
-        device: torch.device = torch.device("cpu"),
+        device: torch.device = DEFAULT_DEVICE,
     ):
         """Bin UV data to reduce number of visibilities
 

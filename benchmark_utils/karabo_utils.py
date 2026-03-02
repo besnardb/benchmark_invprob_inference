@@ -1,22 +1,36 @@
-import numpy as np
-import os
-import math
 import json
+import math
+import os
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from datetime import timedelta, timezone, datetime
-from astropy.time import Time
-from astropy import units as u
+
+import numpy as np
 from astropy.io import fits
+from astropy.time import Time
+from karabo.calibration.noise_rms import ska_low_noise_rms
 from karabo.simulation.interferometer import InterferometerSimulation
 from karabo.simulation.observation import Observation
 from karabo.simulation.sky_model import SkyModel, get_cellsize
 from karabo.simulation.telescope import Telescope
 from karabo.simulator_backend import SimulatorBackend
-from karabo.calibration.noise_rms import ska_low_noise_rms
 
-from benchmark_utils.radio_utils import get_meerkat_visibilities_path, load_config, MEERKAT_LOCATION, is_source_visible, draw_random_pointing
+from benchmark_utils.radio_utils import (
+    MEERKAT_LOCATION,
+    draw_random_pointing,
+    get_meerkat_visibilities_path,
+    is_source_visible,
+)
 
-def set_phase_center(pos_ra, pos_dec, random_position, number_of_time_steps, min_elevation=15.0, verbose=0, sim_it=0):
+
+def set_phase_center(
+    pos_ra,
+    pos_dec,
+    random_position,
+    number_of_time_steps,
+    min_elevation=15.0,
+    verbose=0,
+    sim_it=0,
+):
     verbose = 0
     sim_it = 0
     n_simulations = 1
@@ -78,13 +92,12 @@ def set_phase_center(pos_ra, pos_dec, random_position, number_of_time_steps, min
             print("\n" + "=" * 60)
             print(f"Fixed Pointing {sim_it + 1}/{n_simulations}:")
             print("=" * 60)
-            print(
-                f"  RA  = {phase_center_ra:8.4f}° ({phase_center_ra/15:8.4f} hours)"
-            )
+            print(f"  RA  = {phase_center_ra:8.4f}° ({phase_center_ra/15:8.4f} hours)")
             print(f"  DEC = {phase_center_dec:8.4f}°")
             print("=" * 60 + "\n")
 
     return phase_center_ra, phase_center_dec, obs_date_time
+
 
 def image_to_skymodel(image_fits, ra_center, dec_center):
 
@@ -94,9 +107,7 @@ def image_to_skymodel(image_fits, ra_center, dec_center):
     # Compute dynamic range of input image
     max_flux = np.max(input_image_data)
     # Calculate RMS excluding zero/NaN values
-    valid_data = input_image_data[
-        ~np.isnan(input_image_data) & (input_image_data != 0)
-    ]
+    valid_data = input_image_data[~np.isnan(input_image_data) & (input_image_data != 0)]
     if len(valid_data) > 0:
         # Computing the RMS using the lower 15% percentile to avoid bright sources
         # We assume that these pixels represent the noise background
@@ -109,9 +120,7 @@ def image_to_skymodel(image_fits, ra_center, dec_center):
     print(f"Input Image Dynamic Range for {image_fits}:")
     print(f"Max flux: {max_flux:.6e}")
     print(f"RMS: {rms:.6e}")
-    print(
-        f"Dynamic Range: {dynamic_range:.2f} ({10*np.log10(dynamic_range):.2f} dB)"
-    )
+    print(f"Dynamic Range: {dynamic_range:.2f} ({10*np.log10(dynamic_range):.2f} dB)")
 
     data_fits.close()
 
@@ -124,6 +133,7 @@ def image_to_skymodel(image_fits, ra_center, dec_center):
     )
 
     return sky_model, float(max_flux), float(rms), float(dynamic_range)
+
 
 def generate_meerkat_visibilities(
     fits_file,
@@ -149,22 +159,24 @@ def generate_meerkat_visibilities(
     )
     metadata_path = vis_path.with_suffix(".meta.json")
     imaging_npixel = image.shape[-1]
-    
+
     if vis_path.exists():
         print(f"Loading cached visibilities from {vis_path}")
         return vis_path
-        
+
     cache_dir.mkdir(parents=True, exist_ok=True)
     print(f"Generating new visibilities for MeerKAT in {vis_path}")
 
-    phase_center_ra, phase_center_dec, obs_date_time = set_phase_center(pos_ra, pos_dec, random_position, number_of_time_steps)
+    phase_center_ra, phase_center_dec, obs_date_time = set_phase_center(
+        pos_ra, pos_dec, random_position, number_of_time_steps
+    )
 
     sky, max_flux, image_rms, dynamic_range = image_to_skymodel(
         fits_file, phase_center_ra, phase_center_dec
     )
 
     cellsize = get_cellsize(sky, phase_center_ra, phase_center_dec, imaging_npixel)
-    
+
     # Setup MeerKAT
     telescope = Telescope.constructor("MeerKAT", backend=SimulatorBackend.OSKAR)
 
@@ -180,7 +192,7 @@ def generate_meerkat_visibilities(
     ref_freq = (start_frequency_hz + end_frequency_hz) / 2
     wavelength = c / ref_freq
     beam_fwhm_deg = np.degrees(1.2 * wavelength / 13)
-    
+
     # Define observation
     observation = Observation(
         phase_centre_ra_deg=phase_center_ra,
@@ -212,16 +224,26 @@ def generate_meerkat_visibilities(
             f"(noise_rms_percent={noise_rms_percent})"
         )
 
-        rms_start = ska_low_noise_rms(freq_hz=start_frequency_hz,
-                                bandwidth_hz=frequency_increment_hz,
-                                integration_time_s=number_of_time_steps * 7.997)
+        rms_start = ska_low_noise_rms(
+            freq_hz=start_frequency_hz,
+            bandwidth_hz=frequency_increment_hz,
+            integration_time_s=number_of_time_steps * 7.997,
+        )
 
-        rms_end = ska_low_noise_rms(freq_hz=end_frequency_hz,
-                                        bandwidth_hz=frequency_increment_hz,
-                                        integration_time_s=number_of_time_steps * 7.997)
-        
-        print(f"RMS start frequency ({start_frequency_hz/1e6} MHz): {rms_start} Jy/beam", flush=True)
-        print(f"RMS end frequency ({end_frequency_hz/1e6} MHz): {rms_end} Jy/beam", flush=True)
+        rms_end = ska_low_noise_rms(
+            freq_hz=end_frequency_hz,
+            bandwidth_hz=frequency_increment_hz,
+            integration_time_s=number_of_time_steps * 7.997,
+        )
+
+        print(
+            f"RMS start frequency ({start_frequency_hz/1e6} MHz): {rms_start} Jy/beam",
+            flush=True,
+        )
+        print(
+            f"RMS end frequency ({end_frequency_hz/1e6} MHz): {rms_end} Jy/beam",
+            flush=True,
+        )
 
         simulation = InterferometerSimulation(
             channel_bandwidth_hz=frequency_increment_hz,
@@ -248,13 +270,13 @@ def generate_meerkat_visibilities(
             noise_enable=False,
             use_gpus=use_gpus,
         )
-    
+
     simulation.run_simulation(
         telescope,
         sky,
         observation,
         visibility_format="MS",
-        visibility_path=str(vis_path)
+        visibility_path=str(vis_path),
     )
 
     metadata = {
@@ -275,5 +297,5 @@ def generate_meerkat_visibilities(
     }
     with metadata_path.open("w", encoding="utf-8") as f:
         json.dump(metadata, f)
-    
+
     return vis_path
