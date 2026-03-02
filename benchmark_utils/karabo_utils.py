@@ -138,7 +138,6 @@ def generate_meerkat_visibilities(
     pos_dec: float = -30.7130,
     random_position: bool = False,
     add_noise: bool = False,
-    noise_rms_percent: float = None,
 ):
     """
     Generate visibilities for MeerKAT.
@@ -193,24 +192,9 @@ def generate_meerkat_visibilities(
         frequency_increment_hz=frequency_increment_hz,
     )
 
-    noise_rms_used = None
+    rms_start = None
+    rms_end = None
     if add_noise:
-        if noise_rms_percent is None:
-            noise_rms_used = 50.0
-        else:
-            if np.isfinite(image_rms) and image_rms > 0:
-                noise_rms_used = image_rms * (noise_rms_percent / 100.0)
-            else:
-                noise_rms_used = 50.0
-                print(
-                    "Warning: image RMS is invalid for adaptive noise. "
-                    "Falling back to noise_rms=50."
-                )
-
-        print(
-            f"Noise RMS used: {noise_rms_used:.6e} "
-            f"(noise_rms_percent={noise_rms_percent})"
-        )
 
         rms_start = ska_low_noise_rms(freq_hz=start_frequency_hz,
                                 bandwidth_hz=frequency_increment_hz,
@@ -234,8 +218,8 @@ def generate_meerkat_visibilities(
             noise_inc_freq=frequency_increment_hz,
             noise_number_freq=number_of_channels,
             noise_rms="Range",
-            noise_rms_start=noise_rms_used,
-            noise_rms_end=noise_rms_used,
+            noise_rms_start=rms_start,
+            noise_rms_end=rms_end,
             use_gpus=use_gpus,
         )
     else:
@@ -270,8 +254,8 @@ def generate_meerkat_visibilities(
         "dynamic_range": dynamic_range,
         "max_flux": max_flux,
         "image_rms": image_rms,
-        "noise_rms_percent": noise_rms_percent,
-        "noise_rms_used": noise_rms_used,
+        "noise_rms_start": rms_start,
+        "noise_rms_end": rms_end,
     }
     with metadata_path.open("w", encoding="utf-8") as f:
         json.dump(metadata, f)

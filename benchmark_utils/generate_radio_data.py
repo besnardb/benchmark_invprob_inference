@@ -23,9 +23,6 @@ def generate_data_for_size(cfg, image_size):
     end_frequency_hz = float(cfg.end_frequency_hz)
     number_of_channels = int(cfg.number_of_channels)
     add_noise = bool(cfg.add_noise)
-    noise_rms_percent = getattr(cfg, "noise_rms_percent", None)
-    if noise_rms_percent is not None:
-        noise_rms_percent = float(noise_rms_percent)
 
     
     # Cache directory
@@ -80,7 +77,6 @@ def generate_data_for_size(cfg, image_size):
         pos_dec=pos_dec,
         random_position=random_position,
         add_noise=add_noise,
-        noise_rms_percent=noise_rms_percent,
     )
 
     print(f"Ground truth cached at: {resized_fits_path}")
