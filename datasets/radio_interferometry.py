@@ -12,7 +12,7 @@ from astropy.io import fits
 
 from benchopt import BaseDataset
 from benchopt import config
-from benchmark_utils.radio_utils import get_meerkat_visibilities_path, load_new_header
+from benchmark_utils.radio_utils import load_new_header
 
 
 class Dataset(BaseDataset):
@@ -27,6 +27,7 @@ class Dataset(BaseDataset):
         'noise_level': [0.1],
         'seed': [42],
         'fits_name': [None],
+        'simulator_hash': [None],
     }
 
     @classmethod
@@ -51,12 +52,51 @@ class Dataset(BaseDataset):
 
         return True
 
-    def __init__(self, image_size=256, noise_level=0.1, seed=42, fits_name=None):
+    def __init__(
+        self,
+        image_size=256,
+        noise_level=0.1,
+        seed=42,
+        fits_name=None,
+        simulator_hash=None,
+    ):
         """Initialize the dataset."""
         self.image_size = image_size
         self.noise_level = noise_level
         self.seed = seed
         self.fits_name = fits_name
+        self.simulator_hash = simulator_hash
+
+    @staticmethod
+    def _list_available_simulations(ms_cache_dir: Path):
+        simulations = []
+        for metadata_path in sorted(ms_cache_dir.glob("*.meta.json")):
+            simulation_hash = metadata_path.name.removesuffix(".meta.json")
+            ms_path = ms_cache_dir / f"{simulation_hash}.ms"
+            if not ms_path.exists():
+                continue
+            try:
+                with metadata_path.open("r", encoding="utf-8") as f:
+                    metadata = json.load(f)
+            except (OSError, json.JSONDecodeError) as exc:
+                metadata = {"metadata_error": str(exc)}
+            simulations.append((simulation_hash, metadata))
+        return simulations
+
+    @classmethod
+    def _format_available_simulations(cls, ms_cache_dir: Path) -> str:
+        simulations = cls._list_available_simulations(ms_cache_dir)
+        if not simulations:
+            return (
+                f"No available simulations found in {ms_cache_dir}. "
+                "Run `benchopt install -d radio_interferometry` first."
+            )
+
+        lines = [f"Available simulations in {ms_cache_dir}:"]
+        for simulation_hash, metadata in simulations:
+            metadata_str = json.dumps(metadata, sort_keys=True)
+            lines.append(f"- simulator_hash={simulation_hash} | metadata={metadata_str}")
+        return "\n".join(lines)
 
     def get_data(self):
         """Load the data for this Dataset.
@@ -137,27 +177,38 @@ class Dataset(BaseDataset):
             ground_truth = img.to(device)
             _, _, h, w = ground_truth.shape
 
-            # Get path to visibilities.
-            ms_path = get_meerkat_visibilities_path(
-                img_np,
-                ms_cache_dir,
-                f"{fits_stem}_{self.image_size}.fits",
-            )
+            simulation_hash = self.simulator_hash
+            if isinstance(simulation_hash, str):
+                simulation_hash = simulation_hash.strip()
+
+            if not simulation_hash:
+                raise ValueError(
+                    "`simulator_hash` is not set in the dataset config.\n"
+                    "Set `dataset.radio_interferometry.simulator_hash` in "
+                    "`radio_config.yaml`.\n"
+                    f"{self._format_available_simulations(ms_cache_dir)}"
+                )
+
+            # Get path to visibilities from the selected simulation hash.
+            ms_path = ms_cache_dir / f"{simulation_hash}.ms"
 
             if not ms_path.exists():
                 raise FileNotFoundError(
-                    f"Measurement Set file not found at {ms_path}. "
-                    "Please run 'benchopt install -d radio_interferometry' to generate the data."
+                    f"Measurement Set file not found for simulator_hash={simulation_hash} "
+                    f"at {ms_path}.\n"
+                    f"{self._format_available_simulations(ms_cache_dir)}"
                 )
 
-            metadata_path = ms_path.with_suffix(".meta.json")
+            metadata_path = ms_cache_dir / f"{simulation_hash}.meta.json"
             if metadata_path.exists():
                 with metadata_path.open("r", encoding="utf-8") as f:
                     metadata = json.load(f)
                 imaging_cellsize = float(metadata["imaging_cellsize"])
             else:
                 raise FileNotFoundError(
-                    f"Metadata file not found for {ms_path}. Expected at {metadata_path}."
+                    f"Metadata file not found for simulator_hash={simulation_hash}. "
+                    f"Expected at {metadata_path}.\n"
+                    f"{self._format_available_simulations(ms_cache_dir)}"
                 )
             
             # Create Physics Operator
