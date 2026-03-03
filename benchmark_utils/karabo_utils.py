@@ -138,6 +138,7 @@ def generate_meerkat_visibilities(
     pos_dec: float = -30.7130,
     random_position: bool = False,
     add_noise: bool = False,
+    pol_mode: str = "Full",
 ):
     """
     Generate visibilities for MeerKAT.
@@ -209,7 +210,7 @@ def generate_meerkat_visibilities(
 
         simulation = InterferometerSimulation(
             channel_bandwidth_hz=frequency_increment_hz,
-            pol_mode="Scalar",  # Scalar = 1pol / Full = 4 pol
+            pol_mode=pol_mode,  # Scalar = 1pol / Full = 4 pol
             station_type="Gaussian beam",
             gauss_beam_fwhm_deg=beam_fwhm_deg,
             gauss_ref_freq_hz=ref_freq,
@@ -225,7 +226,7 @@ def generate_meerkat_visibilities(
     else:
         simulation = InterferometerSimulation(
             channel_bandwidth_hz=frequency_increment_hz,
-            pol_mode="Scalar",  # Scalar = 1pol / Full = 4 pol
+            pol_mode=pol_mode,  # Scalar = 1pol / Full = 4 pol
             station_type="Gaussian beam",
             gauss_beam_fwhm_deg=beam_fwhm_deg,
             gauss_ref_freq_hz=ref_freq,
