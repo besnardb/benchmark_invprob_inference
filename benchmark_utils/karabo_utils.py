@@ -14,7 +14,7 @@ from karabo.simulation.telescope import Telescope
 from karabo.simulator_backend import SimulatorBackend
 from karabo.calibration.noise_rms import ska_low_noise_rms
 
-from benchmark_utils.radio_utils import get_meerkat_visibilities_path, load_config, MEERKAT_LOCATION, is_source_visible, draw_random_pointing
+from benchmark_utils.radio_utils import get_meerkat_visibilities_path, load_config, MEERKAT_LOCATION, is_source_visible, draw_random_pointing, get_cellsize_from_fits_wcs
 
 def set_phase_center(pos_ra, pos_dec, random_position, number_of_time_steps, min_elevation=15.0, verbose=0, sim_it=0):
     verbose = 0
@@ -144,11 +144,11 @@ def generate_meerkat_visibilities(
     Generate visibilities for MeerKAT.
     Returns path to MS.
     """
+    imaging_npixel = image.shape[-1]
     vis_path = get_meerkat_visibilities_path(
-        image, cache_dir, os.path.basename(fits_file)
+        image, cache_dir, os.path.basename(fits_file), imaging_npixel, number_of_time_steps, start_frequency_hz, end_frequency_hz, number_of_channels, random_position
     )
     metadata_path = vis_path.with_suffix(".meta.json")
-    imaging_npixel = image.shape[-1]
     
     if vis_path.exists():
         print(f"Loading cached visibilities from {vis_path}")
@@ -163,7 +163,15 @@ def generate_meerkat_visibilities(
         fits_file, phase_center_ra, phase_center_dec
     )
 
-    cellsize = get_cellsize(sky, phase_center_ra, phase_center_dec, imaging_npixel)
+    # Keep reconstruction grid aligned with GT FITS WCS to avoid radial position bias.
+    try:
+        cellsize = get_cellsize_from_fits_wcs(Path(fits_file))
+    except Exception as exc:
+        print(
+            f"Warning: could not read WCS pixel scale from {fits_file}: {exc}. "
+            "Falling back to SkyModel-derived cellsize."
+        )
+        cellsize = get_cellsize(sky, phase_center_ra, phase_center_dec, imaging_npixel)
     
     # Setup MeerKAT
     telescope = Telescope.constructor("MeerKAT", backend=SimulatorBackend.OSKAR)
@@ -219,8 +227,8 @@ def generate_meerkat_visibilities(
             noise_inc_freq=frequency_increment_hz,
             noise_number_freq=number_of_channels,
             noise_rms="Range",
-            noise_rms_start=rms_start,
-            noise_rms_end=rms_end,
+            noise_rms_start=rms_start*10,
+            noise_rms_end=rms_end*10,
             use_gpus=use_gpus,
         )
     else:
