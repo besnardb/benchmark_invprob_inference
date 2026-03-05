@@ -227,8 +227,8 @@ def generate_meerkat_visibilities(
             noise_inc_freq=frequency_increment_hz,
             noise_number_freq=number_of_channels,
             noise_rms="Range",
-            noise_rms_start=rms_start*10,
-            noise_rms_end=rms_end*10,
+            noise_rms_start=rms_start,
+            noise_rms_end=rms_end,
             use_gpus=use_gpus,
         )
     else:
